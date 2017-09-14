@@ -26,15 +26,29 @@ case class Legacy() extends TransactionType
 case class Segwit(ver: Int) extends TransactionType
 
 
-class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) {
+class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) extends RawDataBacked(ByteBuffer.wrap(payload, 0, payload.length).asReadOnlyBuffer()) {
   var tType: TransactionType = Unknown()
   def this(payload: Array[Byte]) = this(payload, None)
 
-  def Inputs(): Iterator[Input] {
+  def Inputs(): Iterator[Input] = {
+    new InputIterator(backingBuffer)
   }
 }
 
-class InputIterator(backingArray: Array[Byte], offset: Int) extends Iterator[Input] {
+class InputIterator(backing: ByteBuffer) extends RawDataBacked(backing) with Iterator[Input] {
+  val inputArrayLength = readVarInt()
+  var inputArrayPos = 0
+
+  def hasNext(): Boolean = {
+    inputArrayPos < inputArrayLength
+  }
+  def next(): Input = {
+    readInput()
+  }
+  def readInput(): Input = {
+    // Placeholder
+    new Input(new OutputReference(new TransactionHash(readHash()), 0), new Array[Byte](0), 0)
+  }
 }
 
 // Things that extend RawDataBacked are views of an underlying backingArray,
@@ -52,6 +66,11 @@ class RawDataBacked(val backingBuffer: ByteBuffer) {
       case 0xFF => backingBuffer.getLong()
       case x => x.toLong
     }
+  }
+  def readHash(): Array[Byte] = {
+    var dst = new Array[Byte](32)
+    backingBuffer.get(dst)
+    dst
   }
 }
 
