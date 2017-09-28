@@ -15,16 +15,22 @@ object BitcoinSer {
   }
 }
 
-class TransactionHash(h: Array[Byte]) {
+// For equality testing: Any iterable that yields bytes
+case class ByteIterable(v: Iterable[Byte])
+
+class TransactionHash(val h: List[Byte]) {
   // byte-order reversal.
   // Over the network as little endian; common representation is big-endian
   def reverse(): TransactionHash = {
-    var v = new(Array[Byte])(32)
-    for (i <- 0 until 32) {
-      v(i) = h(31-i)
-    }
-    new TransactionHash(v)
+    new TransactionHash(h.reverse.toList)
   }
+
+  override def equals(other: Any): Boolean = 
+    other match {
+      case otherHash: TransactionHash => h.sameElements(otherHash.h)
+      case rawHash: ByteIterable => h.sameElements(rawHash.v)
+      case _ => false
+    }
 }
 
 object TransactionType extends Enumeration {
@@ -103,10 +109,10 @@ class RawDataBacked(val backingBuffer: ByteBuffer) extends java.io.Serializable 
     }
   }
 
-  def readHashAt(pos: Int): Array[Byte] = {
+  def readHashAt(pos: Int): List[Byte] = {
     var dst = new Array[Byte](32)
     backingBuffer.get(dst, pos, 32)
-    dst
+    dst.toList
   }
 
   def readUIntAt(pos: Int): Long = {
@@ -125,10 +131,10 @@ class RawDataBacked(val backingBuffer: ByteBuffer) extends java.io.Serializable 
     }
   }
 
-  def readHash(): Array[Byte] = {
+  def readHash(): List[Byte] = {
     var dst = new Array[Byte](32)
     backingBuffer.get(dst)
-    dst
+    dst.toList
   }
 
   def readUInt(): Long = {
@@ -137,14 +143,14 @@ class RawDataBacked(val backingBuffer: ByteBuffer) extends java.io.Serializable 
     Utils.readUint32(bytes,0)
   }
 
-  def readVarByteArray(): Array[Byte] = {
+  def readVarByteArray(): List[Byte] = {
     val len = readVarInt()
     var bytes = new Array[Byte](len.toInt)
     backingBuffer.get(bytes)
-    bytes
+    bytes.toList
   }
 }
 
 
-case class Input(outputRef: OutputReference, script: Array[Byte], sequence: Long) 
+case class Input(outputRef: OutputReference, script: List[Byte], sequence: Long) 
 case class OutputReference(txHash: TransactionHash, index: Long) 
