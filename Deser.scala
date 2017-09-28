@@ -5,6 +5,9 @@ package xyz.bcheng.bitcoinser
  */
 
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
+
+import org.bitcoinj.core.Utils
 
 object BitcoinSer {
   def readTransaction(tx: Array[Byte], hash: Option[TransactionHash]): RawTransaction = {
@@ -13,6 +16,15 @@ object BitcoinSer {
 }
 
 class TransactionHash(h: Array[Byte]) {
+  // byte-order reversal.
+  // Over the network as little endian; common representation is big-endian
+  def reverse(): TransactionHash = {
+    var v = new(Array[Byte])(32)
+    for (i <- 0 until 32) {
+      v(i) = h(31-i)
+    }
+    new TransactionHash(v)
+  }
 }
 
 object TransactionType extends Enumeration {
@@ -26,12 +38,32 @@ case class Legacy() extends TransactionType
 case class Segwit(ver: Int) extends TransactionType
 
 
-class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) extends RawDataBacked(ByteBuffer.wrap(payload, 0, payload.length).asReadOnlyBuffer()) {
+class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) extends RawDataBacked(ByteBuffer.wrap(payload, 0, payload.length).asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN)) {
   var tType: TransactionType = Unknown()
   def this(payload: Array[Byte]) = this(payload, None)
 
-  def Inputs(): Iterator[Input] = {
-    new InputIterator(backingBuffer)
+  def inputs(): Iterator[Input] = {
+    var buf = backingBuffer.slice()
+    for (i <- 0 until getInputOffset()) {
+      buf.get()
+    }
+    new InputIterator(buf)
+  }
+
+  def getInputOffset(): Int = {
+    tType match {
+      case Unknown() => detectTransactionType()
+        getInputOffset()
+      case Legacy()  => 4
+      case Segwit(_) =>  6
+    }
+  }
+
+  def detectTransactionType() {
+    backingBuffer.get(4) match {
+      case 0x00 => tType = Segwit(1)
+      case _ => tType = Legacy()
+    }
   }
 }
 
@@ -43,11 +75,12 @@ class InputIterator(backing: ByteBuffer) extends RawDataBacked(backing) with Ite
     inputArrayPos < inputArrayLength
   }
   def next(): Input = {
+    inputArrayPos += 1
     readInput()
   }
   def readInput(): Input = {
-    // Placeholder
-    new Input(new OutputReference(new TransactionHash(readHash()), 0), new Array[Byte](0), 0)
+    new Input(new OutputReference(new TransactionHash(readHash()).reverse(), readUInt()),
+        readVarByteArray(), readUInt())
   }
 }
 
@@ -56,24 +89,62 @@ class InputIterator(backing: ByteBuffer) extends RawDataBacked(backing) with Ite
 // array may be shared between multiple instances and cannot be modified.
 // RawDataBacked provides seek* and read* helper methods to interact with the
 // array.
-class RawDataBacked(val backingBuffer: ByteBuffer) {
+class RawDataBacked(val backingBuffer: ByteBuffer) extends java.io.Serializable {
   // A bitcoin varint can be anything from 1 byte to 8. 
   // There is overhead of up to a single byte for longer numbers.
+  
+  // These methods access via absolute position
+  def readVarIntAt(pos: Int): Long = {
+    backingBuffer.get(pos) match {
+      case 0xFD => backingBuffer.getChar(pos+1).toLong
+      case 0xFE => readUIntAt(pos+1)
+      case 0xFF => backingBuffer.getLong(pos+1)
+      case x => x & 0xffl
+    }
+  }
+
+  def readHashAt(pos: Int): Array[Byte] = {
+    var dst = new Array[Byte](32)
+    backingBuffer.get(dst, pos, 32)
+    dst
+  }
+
+  def readUIntAt(pos: Int): Long = {
+    var bytes = new Array[Byte](4)
+    backingBuffer.get(bytes, pos, 4)
+    Utils.readUint32(bytes,0)
+  }
+
+  // These methods advance the reader cursor
   def readVarInt(): Long = {
     backingBuffer.get() match {
       case 0xFD => backingBuffer.getChar().toLong
-      case 0xFE => backingBuffer.getInt().toLong
+      case 0xFE => readUInt()
       case 0xFF => backingBuffer.getLong()
-      case x => x.toLong
+      case x => x & 0xffl
     }
   }
+
   def readHash(): Array[Byte] = {
     var dst = new Array[Byte](32)
     backingBuffer.get(dst)
     dst
   }
+
+  def readUInt(): Long = {
+    var bytes = new Array[Byte](4)
+    backingBuffer.get(bytes)
+    Utils.readUint32(bytes,0)
+  }
+
+  def readVarByteArray(): Array[Byte] = {
+    val len = readVarInt()
+    var bytes = new Array[Byte](len.toInt)
+    backingBuffer.get(bytes)
+    bytes
+  }
 }
 
 
-case class Input(outputRef: OutputReference, script: Array[Byte], Sequence: Int) 
-case class OutputReference(txHash: TransactionHash, Index: Int) 
+case class Input(outputRef: OutputReference, script: Array[Byte], sequence: Long) 
+case class OutputReference(txHash: TransactionHash, index: Long) 
