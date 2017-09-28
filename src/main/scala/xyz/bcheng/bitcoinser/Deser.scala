@@ -15,8 +15,11 @@ object BitcoinSer {
   }
 }
 
-// For equality testing: Any iterable that yields bytes
-case class ByteIterable(v: Iterable[Byte])
+object TransactionHash {
+  def apply(h: Seq[Byte]): TransactionHash = {
+    new TransactionHash(h.toList)
+  }
+}
 
 class TransactionHash(val h: List[Byte]) {
   // byte-order reversal.
@@ -28,7 +31,10 @@ class TransactionHash(val h: List[Byte]) {
   override def equals(other: Any): Boolean = 
     other match {
       case otherHash: TransactionHash => h.sameElements(otherHash.h)
-      case rawHash: ByteIterable => h.sameElements(rawHash.v)
+      case rawHash: Seq[_] => h.sameElements(rawHash)
+      // defined separately because other:Any doesn't seem to trigger
+      // WrappedArray, which causes Seq not to match. Is there a better way?
+      case rawArray: Array[Byte] =>  h.sameElements(rawArray)
       case _ => false
     }
 }
