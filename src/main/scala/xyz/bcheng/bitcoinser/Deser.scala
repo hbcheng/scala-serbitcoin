@@ -19,8 +19,10 @@ object TransactionHash {
   def apply(h: Seq[Byte]): TransactionHash = {
     new TransactionHash(h.toList)
   }
+  val zeroHash = new TransactionHash(List.fill(32)(0.toByte))
 }
 
+@SerialVersionUID(10L)
 class TransactionHash(val h: List[Byte]) {
   // byte-order reversal.
   // Over the network as little endian; common representation is big-endian
@@ -50,6 +52,7 @@ case class Legacy() extends TransactionType
 case class Segwit(ver: Int) extends TransactionType
 
 
+@SerialVersionUID(10L)
 class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) extends RawDataBacked(ByteBuffer.wrap(payload, 0, payload.length).asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN)) {
   var tType: TransactionType = Unknown()
   def this(payload: Array[Byte]) = this(payload, None)
@@ -101,6 +104,7 @@ class InputIterator(backing: ByteBuffer) extends RawDataBacked(backing) with Ite
 // array may be shared between multiple instances and cannot be modified.
 // RawDataBacked provides seek* and read* helper methods to interact with the
 // array.
+@SerialVersionUID(10L)
 class RawDataBacked(val backingBuffer: ByteBuffer) extends java.io.Serializable {
   // A bitcoin varint can be anything from 1 byte to 8. 
   // There is overhead of up to a single byte for longer numbers.
@@ -158,5 +162,8 @@ class RawDataBacked(val backingBuffer: ByteBuffer) extends java.io.Serializable 
 }
 
 
+@SerialVersionUID(10L)
 case class Input(outputRef: OutputReference, script: List[Byte], sequence: Long) 
+
+@SerialVersionUID(10L)
 case class OutputReference(txHash: TransactionHash, index: Long) 
