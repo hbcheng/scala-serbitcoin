@@ -23,7 +23,7 @@ object TransactionHash {
 }
 
 @SerialVersionUID(10L)
-class TransactionHash(val h: List[Byte]) {
+class TransactionHash(val h: List[Byte]) extends Serializable {
   // byte-order reversal.
   // Over the network as little endian; common representation is big-endian
   def reverse(): TransactionHash = {
@@ -51,18 +51,27 @@ case class Unknown() extends TransactionType
 case class Legacy() extends TransactionType
 case class Segwit(ver: Int) extends TransactionType
 
-
 @SerialVersionUID(10L)
-class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) extends RawDataBacked(ByteBuffer.wrap(payload, 0, payload.length).asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN)) {
+class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) extends RawDataBacked(ByteBuffer.wrap(payload, 0, payload.length).asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN)) with Serializable {
   var tType: TransactionType = Unknown()
   def this(payload: Array[Byte]) = this(payload, None)
 
   def inputs(): Iterator[Input] = {
+    inputIterator()
+  }
+
+  def inputIterator(): InputIterator = {
     var buf = backingBuffer.slice()
-    for (i <- 0 until getInputOffset()) {
-      buf.get()
-    }
+    buf.position(getInputOffset()).asInstanceOf[ByteBuffer].
+      order(ByteOrder.LITTLE_ENDIAN)
     new InputIterator(buf)
+  }
+  def outputs(): Iterator[Output] = {
+    var buf = backingBuffer.slice()
+    buf.position(getOutputOffset()).asInstanceOf[ByteBuffer].
+      order(ByteOrder.LITTLE_ENDIAN)
+
+    new OutputIterator(buf) 
   }
 
   def getInputOffset(): Int = {
@@ -74,6 +83,18 @@ class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) 
     }
   }
 
+  def getOutputOffset(): Int = {
+    var buf = backingBuffer.slice()
+    buf.position(getInputOffset()).asInstanceOf[ByteBuffer].
+      order(ByteOrder.LITTLE_ENDIAN)
+    println("before:", buf.position)
+    // make an input iterator, to handle skipping past (variable length) inputs
+    val ii = new InputIterator(buf)
+    ii.skipAll()
+    println("after:", buf.position)
+    buf.position
+  }
+
   def detectTransactionType() {
     backingBuffer.get(4) match {
       case 0x00 => tType = Segwit(1)
@@ -82,8 +103,8 @@ class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) 
   }
 }
 
-class InputIterator(backing: ByteBuffer) extends RawDataBacked(backing) with Iterator[Input] {
-  val inputArrayLength = readVarInt()
+class InputIterator(backing: ByteBuffer) extends Iterator[Input] {
+  val inputArrayLength = BinUtil.readVarInt(backing)
   var inputArrayPos = 0
 
   def hasNext(): Boolean = {
@@ -93,9 +114,41 @@ class InputIterator(backing: ByteBuffer) extends RawDataBacked(backing) with Ite
     inputArrayPos += 1
     readInput()
   }
+  def skipAll() {
+    for (i <- 0 until inputArrayLength.toInt) {
+      skipInput()
+    }
+  }
+
+  def skipInput() {
+    new TxHashReader().skip(backing) 
+    new Uint32().skip(backing) 
+    new ByteArray().skip(backing) 
+    new Uint32().skip(backing) 
+  }
+  
   def readInput(): Input = {
-    new Input(new OutputReference(new TransactionHash(readHash()).reverse(), readUInt()),
-        readVarByteArray(), readUInt())
+    new Input(new OutputReference(new TxHashReader().read(backing).reverse(),
+      new Uint32().read(backing)), new ByteArray().read(backing).toList,
+      new Uint32().read(backing))
+  }
+}
+
+class OutputIterator(backing: ByteBuffer) extends Iterator[Output] {
+  val outputArrayLength = BinUtil.readVarInt(backing)
+  var outputArrayPos = 0
+
+  def hasNext(): Boolean = {
+    outputArrayPos < outputArrayLength
+  }
+
+  def next(): Output = {
+    outputArrayPos += 1
+    readOutput()
+  }
+
+  def readOutput(): Output = {
+    new Output(backing.getLong(), new ByteArray().read(backing).toList)
   }
 }
 
@@ -162,8 +215,13 @@ class RawDataBacked(val backingBuffer: ByteBuffer) extends java.io.Serializable 
 }
 
 
+
+
 @SerialVersionUID(10L)
 case class Input(outputRef: OutputReference, script: List[Byte], sequence: Long) 
 
 @SerialVersionUID(10L)
 case class OutputReference(txHash: TransactionHash, index: Long) 
+
+@SerialVersionUID(10L)
+case class Output(value: Long, script: List[Byte])
