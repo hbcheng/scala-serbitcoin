@@ -1,7 +1,7 @@
 import org.scalatest.FunSpec
 
 import org.apache.commons.codec.binary.Hex
-import xyz.bcheng.bitcoinser.script.{Analyzer, ScriptType}
+import xyz.bcheng.bitcoinser.script.{Analyzer, ScriptType, P2SH, P2SHMultisig, P2PKH}
 
 // This test exercises the base level analysis routines only, not the
 // scripttype wrappers or any other components
@@ -43,6 +43,39 @@ class BaseAddressParseSpec extends FunSpec {
     it("should recover litecoin addresses") {
       val pkh = Hex.decodeHex("166297ee8cbf2d5449cc6af9cbd406412d41409e".toArray)
       assert(liteAnalyzer.pubkeyHashToAddress(pkh.toList) == Some("LMGKEq1kq4jm3JenCFFxFUNb595zfRyB1p"))
+    }
+  }
+}
+
+// This test builds on BaseAddressParseSpec with information from script 
+// type examination.
+// This is not an end-to-end test; it leverages prebuilt ScriptType types
+// with properly instantiated values.
+class ScriptAddressParseSpec extends FunSpec {
+  describe("Building an address analyzer for bitcoin") {
+    val analyzer = new Analyzer(0, 5)
+    describe("and preparing a P2SH transaction ScriptType") {
+      val scriptHash = Hex.decodeHex("6a1ecdb5a9fd365b03d90df5e6ac30cfc08e9091".toArray)
+      val p2shExample = new P2SH(scriptHash.toList)
+      it("should recover the correct address") {
+        assert(analyzer.extractAddress(p2shExample) == Some("3BN8T9RzfrjFHzDJ5jG5xNt4EeTMnDaTFa"))
+      }
+      describe("and preparing a P2SH-derived child ScriptType") {
+        // Mocking the rest of the values, which should not matter for
+        // address extraction
+        val msigExample = new P2SHMultisig(scriptHash.toList, 2, 3, List[List[Byte]]())
+        it("should still recover the correct address") {
+          assert(analyzer.extractAddress(msigExample) == Some("3BN8T9RzfrjFHzDJ5jG5xNt4EeTMnDaTFa"))
+        }
+
+      }
+    }
+    describe("and preparing a P2PKH transaction ScriptType") {
+      val addressHash = Hex.decodeHex("5e11f5ccdb0326dfc884bd71417df56fd8a2101b".toArray)
+      val p2pkhExample = new P2PKH(addressHash.toList)
+      it("should extract the correct address") {
+        assert(analyzer.extractAddress(p2pkhExample) == Some("19aQ2vgtjc5TEcYneMXbeVHk1xBwTfzSyQ"))
+      }
     }
   }
 }
