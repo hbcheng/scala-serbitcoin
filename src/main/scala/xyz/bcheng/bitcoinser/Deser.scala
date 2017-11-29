@@ -56,6 +56,10 @@ class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) 
   var tType: TransactionType = Unknown()
   def this(payload: Array[Byte]) = this(payload, None)
 
+  def size(): Int = {
+    payload.length
+  }
+
   def inputs(): Iterator[Input] = {
     inputIterator()
   }
