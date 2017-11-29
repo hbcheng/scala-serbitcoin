@@ -57,10 +57,11 @@ object Analyzer {
     }
   }
 
-
+  val bitcoinAnalyzer = new Analyzer(0, 5)
 }
 
-class Analyzer(addrPrefix: Byte, p2shAddrPrefix: Byte) {
+@SerialVersionUID(10L)
+class Analyzer(addrPrefix: Byte, p2shAddrPrefix: Byte) extends Serializable {
   def extractAddress(stype: ScriptType): Option[String] = {
     stype match {
       case Unknown(spk, ss, wit) => {
