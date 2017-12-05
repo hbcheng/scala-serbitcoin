@@ -25,17 +25,6 @@ class P2SH(val scriptHash: List[Byte]) extends ScriptType {
   def refineWith(scriptPubKey: Option[List[Byte]], scriptSig: Option[List[Byte]], witness: Option[List[List[Byte]]]): ScriptType = {
     this
   }
-  /*
-    scriptSig match {
-      case S
-      case Some(x) => guessP2SHType(x)
-      case None => this
-    }
-  }
-  def guessP2SHType(scriptSig: List[Byte]): ScriptType = {
-
-  }
-  */
 }
 // This extractor allows matching on parent type in cases where the specific 
 // subtype does not matter (eg. if we're talking about legacy addresses only)

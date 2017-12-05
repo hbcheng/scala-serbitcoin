@@ -4,6 +4,9 @@ import java.nio.ByteBuffer
 import org.bitcoinj.core.Utils
 
 object BinUtil {
+  val Varint_16 = 0xFD.toByte
+  val Varint_32 = 0xFE.toByte
+  val Varint_64 = 0xFF.toByte
 
   // ReadVarInt will return the incorrect value for 64-bit variable length
   // ints with the highest significant bit set, as it will be interpreted
@@ -11,9 +14,9 @@ object BinUtil {
   // to a bigint or raw bytefield.
   def readVarInt(buf: ByteBuffer): Long = {
     buf.get() match {
-      case 0xFD => readUint16(buf)
-      case 0xFE => readUint32(buf)
-      case 0xFF => buf.getLong()
+      case Varint_16 => readUint16(buf)
+      case Varint_32 => readUint32(buf)
+      case Varint_64 => buf.getLong()
       case x => x & 0xffl
     }
   }

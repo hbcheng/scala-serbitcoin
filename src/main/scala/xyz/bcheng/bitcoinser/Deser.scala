@@ -91,11 +91,9 @@ class RawTransaction(payload: Array[Byte], cachedHash: Option[TransactionHash]) 
     var buf = backingBuffer.slice()
     buf.position(getInputOffset()).asInstanceOf[ByteBuffer].
       order(ByteOrder.LITTLE_ENDIAN)
-    println("before:", buf.position)
     // make an input iterator, to handle skipping past (variable length) inputs
     val ii = new InputIterator(buf)
     ii.skipAll()
-    println("after:", buf.position)
     buf.position
   }
 
@@ -141,6 +139,7 @@ class InputIterator(backing: ByteBuffer) extends Iterator[Input] {
 class OutputIterator(backing: ByteBuffer) extends Iterator[Output] {
   val outputArrayLength = BinUtil.readVarInt(backing)
   var outputArrayPos = 0
+
 
   def hasNext(): Boolean = {
     outputArrayPos < outputArrayLength
