@@ -3,6 +3,9 @@ import org.apache.commons.codec.binary.Hex
 
 import xyz.bcheng.bitcoinser.{TransactionHash, RawTransaction, Legacy}
 
+import scala.io.Source
+import java.io.File
+
 class BasicTransactionSpec extends FunSpec {
   println("Entered BasicTransactionSpec")
   describe("A Transaction") {
@@ -56,3 +59,34 @@ class BasicTransactionSpec extends FunSpec {
   }
 }
 
+class LargeTransactionSpec extends FunSpec {
+  describe("A RawTransaction, loaded from a large example") {
+    val f = new File(getClass.getClassLoader.getResource("large-tx.txt").getPath)
+    val dataFile = Source.fromFile(f)
+    val txString = try dataFile.mkString finally dataFile.close()
+    val txBytes = Hex.decodeHex(txString.trim.toArray)
+
+    // This is tx 0f5007ea2f309b3609c08a6caab8986e04e7f064db2e2b68446c27c6e7c52232
+    val tx = new RawTransaction(txBytes)
+
+    it("should have the expected transaction type") {
+      tx.detectTransactionType()
+      assert(tx.tType == Legacy())
+    }
+
+    describe("when reading out inputs") {
+      val inArray = tx.inputs().toArray
+      
+      it("should be the right length") {
+        assert(inArray.length == 381)
+      }
+    }
+    describe("when reading out outputs") {
+      val outArray = tx.outputs().toArray
+      it("should be the right length") {
+        assert(outArray.length == 2)
+      }
+
+    }
+  }
+}
