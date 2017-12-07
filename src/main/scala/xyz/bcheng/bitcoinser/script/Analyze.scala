@@ -70,9 +70,9 @@ class Analyzer(addrPrefix: Byte, p2shAddrPrefix: Byte) extends Serializable {
           case st => extractAddress(st)
         }
       }
-      case P2SH(sh) => scriptHashToAddress(sh)
-      case P2PKH(pkh) => pubkeyHashToAddress(pkh)
-      case P2PK(pk) => pubkeyToAddress(pk)
+      case P2SH(sh) => Some(scriptHashToAddress(sh))
+      case P2PKH(pkh) => Some(pubkeyHashToAddress(pkh))
+      case P2PK(pk) => Some(pubkeyToAddress(pk))
       case P2WPKH(_) | P2WSH(_) => {
         // At this time, don't know what to do with native witness.
         // We could extract a legacy address, but this would further blur the
@@ -84,15 +84,15 @@ class Analyzer(addrPrefix: Byte, p2shAddrPrefix: Byte) extends Serializable {
  
   // A P2SH address is the scriptHash, plus the bit indicating the type,
   // and a checksum
-  def scriptHashToAddress(sh: List[Byte]): Option[String] = {
-    Some(Base58.encode((addressBytes(sh, p2shAddrPrefix).toArray)))
+  def scriptHashToAddress(sh: List[Byte]): String = {
+    Base58.encode((addressBytes(sh, p2shAddrPrefix).toArray))
   }
 
-  def pubkeyHashToAddress(pkh: List[Byte]): Option[String] = {
-    Some(Base58.encode(addressBytes(pkh, addrPrefix).toArray))
+  def pubkeyHashToAddress(pkh: List[Byte]): String = {
+    Base58.encode(addressBytes(pkh, addrPrefix).toArray)
   }
 
-  def pubkeyToAddress(pk: List[Byte]): Option[String] = {
+  def pubkeyToAddress(pk: List[Byte]): String = {
     pubkeyHashToAddress(addressHash(pk))
   }
 
